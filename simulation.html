@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theorems on Pyramid Formation from Radial Polygonal Truncation</title>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #ffffff;
+            font-family: Arial, sans-serif;
+        }
+
+        .controls-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(224, 216, 224, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 8px 8px rgba(0,0,0,0.4);
+        }
+
+        .slider-container {
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: inline-block;
+            width: 160px;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            width: 180px;
+        }
+
+        button {
+            margin-top: 5px;
+            padding: 7px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .info-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            background: rgba(255,255,255,0.8);
+            padding: 15px;
+            border-radius: 8px;
+            line-height: 1.7;
+            min-width: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+        }
+
+        .maximum {
+            color: green;
+        }
+
+        .minimum {
+            color: red;
+        }
+
+        .efficiency {
+            color: blue;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="controls-container">
+
+        <div class="slider-container">
+            <label for="NSlider">Number of Sides:</label>
+            <input type="range" id="NSlider" min="4" max="50" value="5" step="1">
+            <span id="sliderNValue">5</span>
+        </div>
+
+        <div class="slider-container">
+            <label for="CSlider">Number of Sides Cut:</label>
+            <input type="range" id="CSlider" min="0" max="47" value="1" step="1">
+            <span id="sliderCValue">1</span>
+        </div>
+
+        <button id="flipButton">FLIP</button>
+        <button id="showButton">SHOW DATA</button>
+
+    </div>
+
+    <div class="info-container" id="info-container" hidden>
+
+        <div>Number of sides: <span id="nValue"></span></div>
+        <div>Number of sides cut: <span id="cValue"></span></div>
+
+        <div>Height: <span id="heightValue"></span></div>
+        <div>Base Radius: <span id="radiusValue"></span></div>
+        <div>Base Area: <span id="baseValue"></span></div>
+        <div>Volume: <span id="volumeValue"></span></div>
+        <div>Surface Area: <span id="surfaceValue"></span></div>
+        <div>Efficiency: <span id="efficiencyValue"></span></div>
+
+        <hr>
+    <div id = "optimalValuesList">
+        <div class="maximum">
+            Optimal c:
+            <span id="optimalC"></span>
+        </div>
+        <div class="maximum">
+            Maximum Possible Volume:
+            <span id="maxVolume"></span>
+        </div>
+        <div class="minimum">
+            Pessimal c:
+            <span id="pessimalC"></span>
+        </div>
+
+        <div class="minimum">
+            Minimum Possible Volume:
+            <span id="minVolume"></span>
+        </div>
+
+        <div class="efficiency">
+            Efficient c:
+            <span id="efficientC"></span>
+        </div>
+
+        <div class="efficiency">
+            Maximum Efficiency:
+            <span id="maxEfficiency"></span>
+        </div>
+</div>
+    </div>
+
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+        }
+    }
+    </script>
+
+
+    <script type="module">
+
+        import * as THREE from "three";
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        camera.position.set(12, 8, 15);
+        camera.lookAt(0, 0, 0);
+
+
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true
+        });
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+
+        const controls = new OrbitControls(
+            camera,
+            renderer.domElement
+        );
+
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+
+        const NSlider = document.getElementById("NSlider");
+        const CSlider = document.getElementById("CSlider");
+        const Noutput = document.getElementById("sliderNValue");
+        const Coutput = document.getElementById("sliderCValue");
+        const flipButton = document.getElementById("flipButton");
+       
+        const r = 1;
+        let flipped = false;
+        let coneMesh = null;
+
+        const material =
+            new THREE.MeshStandardMaterial({
+                color: 0x44aaff,
+                side: THREE.DoubleSide,
+                flatShading: true
+            });
+
+
+        const strokeMaterial =
+            new THREE.LineBasicMaterial({
+                color: 0x000000
+            });
+
+
+            function toggleHide() {
+    const targetDiv = document.getElementById("info-container");
+    const showButton = document.getElementById("showButton");
+
+    targetDiv.hidden = !targetDiv.hidden;
+
+    showButton.textContent = targetDiv.hidden ? "SHOW DATA" : "HIDE DATA";
+}
+
+        function ModifiedBinarySearch(dataset) {
+
+            if (dataset.length === 0) {
+                return 0;
+            }
+
+            let leftPointer = 0;
+            let rightPointer = dataset.length - 1;
+            while (leftPointer < rightPointer) {
+                const mid = Math.floor(
+                    (leftPointer + rightPointer) / 2
+                );
+                if (dataset[mid] > dataset[mid + 1]) {
+                    rightPointer = mid;
+                } else {
+                    leftPointer = mid + 1;
+                }
+            }
+            return leftPointer + 1;
+        }
+
+        function update() {
+
+            const n = Number(NSlider.value);
+            const c = Math.min(Number(CSlider.value),n - 3);
+
+            const R =r *(Math.sin(Math.PI / n) /Math.sin(Math.PI / (n - c)));
+            let H =Math.sqrt(Math.pow(r, 2) -Math.pow(R, 2));
+            if (isNaN(H)) {
+                H = 0;
+            }
+
+            const Base = (Math.pow(r, 2) *(n - c) *Math.pow(Math.sin(Math.PI / n),2) *Math.cos(Math.PI / (n - c)))/Math.sin(Math.PI / (n - c));
+            const vol =(Base * H) / 3;
+            const SurfaceArea =(n - c) *  (r * r * Math.sin(Math.PI / n)) * (Math.sin((Math.PI *(2 * n - c) ) /(n * (n - c))) /Math.sin(Math.PI / (n - c)));
+
+
+            const efficiency = SurfaceArea !== 0 ? vol / SurfaceArea: 0;
+
+
+            let possibleVolume = [];
+            let possibleEfficiency = [];
+
+
+            for (let cutSides = 0; cutSides <= n - 3; cutSides++) {
+                const circumRadius = r *  ( Math.sin(Math.PI / n) / Math.sin(Math.PI / (n - cutSides)));
+                const altitude =Math.sqrt(r * r -circumRadius * circumRadius);
+                const baseArea =( r *r *(n - cutSides) *Math.pow(Math.sin(Math.PI / n), 2)*Math.cos(Math.PI / (n - cutSides)))/Math.sin(Math.PI /(n - cutSides));
+                const Volume =(baseArea * altitude) / 3;
+                const SA =(n - cutSides) *( r *r *Math.sin(Math.PI / n))*(Math.sin((Math.PI *(2 * n -cutSides))/(n * (n - cutSides)))/Math.sin(Math.PI / (n - cutSides)));
+
+
+                possibleVolume.push(Volume);
+
+
+                possibleEfficiency.push(
+                    SA !== 0
+                        ? Volume / SA
+                        : 0
+                );
+            }
+
+
+            const optimalC = ModifiedBinarySearch(possibleVolume)-1;
+            const pessimalC = possibleVolume.length-1;
+            const efficientC = ModifiedBinarySearch(possibleEfficiency)-1;
+            const maxVolume = possibleVolume[optimalC];
+            const minVolume = possibleVolume[pessimalC];
+            const maxEfficiency = possibleEfficiency[efficientC];
+
+
+            Noutput.textContent = NSlider.value;
+            Coutput.textContent = CSlider.value;
+
+
+            document.getElementById("nValue").textContent = n;
+            document.getElementById("cValue").textContent = c;
+            document.getElementById("heightValue").textContent = H.toFixed(3);
+            document.getElementById("radiusValue").textContent = R.toFixed(3);
+            document.getElementById("baseValue").textContent = Base.toFixed(4);
+            document.getElementById("volumeValue").textContent = vol.toFixed(4);
+            document.getElementById("surfaceValue").textContent = SurfaceArea.toFixed(4);
+            document.getElementById("efficiencyValue").textContent = efficiency.toFixed(4);
+            document.getElementById("maxVolume").textContent = maxVolume !== undefined? maxVolume.toFixed(4): "N/A";
+            document.getElementById("optimalC").textContent = optimalC;
+            document.getElementById("pessimalC").textContent = pessimalC;
+            document.getElementById("minVolume").textContent = minVolume !== undefined? minVolume.toFixed(4): "N/A";
+            document.getElementById("efficientC").textContent = efficientC;
+            document.getElementById("maxEfficiency").textContent = maxEfficiency !== undefined? maxEfficiency.toFixed(4): "N/A";
+            updateConeGeometry(R, H, n - c);
+        }
+
+        function updateConeGeometry(radius, height, radialSegments) {
+            // Remove previous cone
+            if (coneMesh) {
+                scene.remove(coneMesh);
+                coneMesh.traverse(
+                    function(child) {
+                        if (child.geometry) {
+                            child.geometry.dispose();
+                        }
+
+                    }
+                );
+            }
+
+
+            const displayRadius = radius * 5;
+            const displayHeight = height * 5;
+            const segments = Math.max(3, Math.floor(radialSegments));
+
+
+            // Create geometry
+            const geometry =
+                new THREE.ConeGeometry(
+                    displayRadius,
+                    displayHeight,
+                    segments,
+                    1,
+                    false
+                );
+
+
+            // Create solid cone
+            const mesh = new THREE.Mesh(geometry, material);
+            const edges = new THREE.EdgesGeometry(geometry);
+            const strokes = new THREE.LineSegments(edges, strokeMaterial);
+
+
+            // Put both the cone and strokes into one group
+            coneMesh =new THREE.Group();
+
+            coneMesh.add(mesh);
+            coneMesh.add(strokes);
+
+            scene.add(coneMesh);
+
+            if (flipped) {
+                coneMesh.rotation.z = 0;
+                coneMesh.position.y = -4.5;
+
+            } else {
+                coneMesh.rotation.z = Math.PI;
+                coneMesh.position.y = -4;
+            }
+        }
+
+
+        function updateCSliderLimit() {
+
+            const n = Number(NSlider.value) - 1;
+
+            const maxC = Math.max(0, n - 2);
+
+            CSlider.max =maxC;
+
+
+            if (Number(CSlider.value) >maxC) {
+                CSlider.value =maxC;
+            }
+        }
+
+        NSlider.addEventListener("input", () => {updateCSliderLimit();update();});
+
+
+        CSlider.addEventListener("input",() => {
+                update();
+            }
+        );
+        showButton.addEventListener("click", toggleHide);
+
+        flipButton.addEventListener("click", () => {
+                flipped =
+                    !flipped;
+                flipButton.textContent =
+                    flipped
+                        ? "FLIPPED"
+                        : "FLIP";
+                update();
+            }
+        );
+
+        update();
+        function animate() {
+            requestAnimationFrame(animate);
+            if (coneMesh) {
+                coneMesh.rotation.y +=0.005;
+            }
+            controls.update();
+            renderer.render(scene,camera);
+        }
+
+
+        animate();
+        window.addEventListener("resize", () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth,window.innerHeight
+                );
+            }
+        );
+
+    </script>
+
+</body>
+</html>
